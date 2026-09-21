@@ -42,7 +42,10 @@ function loadSavedData() {
           activeTabId: data[0]?.id || null
         };
       }
-      return data;
+      return {
+        tabs: Array.isArray(data.tabs) ? data.tabs : [],
+        activeTabId: data.activeTabId || null
+      };
     }
   } catch (e) { }
   return { tabs: [], activeTabId: null };
@@ -145,7 +148,19 @@ const createWindow = () => {
       submenu: [
         { role: 'reload' },
         { role: 'forceReload' },
-        { role: 'toggleDevTools' },
+        {
+          label: 'Toggle Developer Tools',
+          accelerator: process.platform === 'darwin' ? 'Cmd+Alt+I' : 'Ctrl+Shift+I',
+          click: () => {
+            // Opened docked, the DevTools panel is covered by the active BrowserView,
+            // which always renders above mainWindow's own content. Detach it instead.
+            if (mainWindow.webContents.isDevToolsOpened()) {
+              mainWindow.webContents.closeDevTools();
+            } else {
+              mainWindow.webContents.openDevTools({ mode: 'detach' });
+            }
+          }
+        },
         { type: 'separator' },
         {
           label: 'Reset Zoom',
@@ -239,7 +254,14 @@ const createWindow = () => {
     }
 
     if (savedData.tabs.length > 0) {
-      savedData.tabs.forEach(t => createTab(t.id, t.name, t.muted, t.customName, t.color));
+      savedData.tabs.forEach(t => {
+        try {
+          createTab(t.id, t.name, t.muted, t.customName, t.color);
+        } catch (e) {
+          console.error('Failed to restore tab', t, e);
+        }
+      });
+      if (tabs.length === 0) createTab();
     } else {
       createTab();
     }
